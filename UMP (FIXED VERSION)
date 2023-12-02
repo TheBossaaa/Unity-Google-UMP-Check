@@ -1,0 +1,130 @@
+using System.Collections;
+using System.Collections.Generic;
+using GoogleMobileAds.Api;
+using GoogleMobileAds.Ump.Api;
+using Unity.VisualScripting;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class UMPManager : MonoBehaviour
+{
+    [SerializeField, Tooltip("Button to show the privacy options form.")]
+    private Button _privacyButton;
+
+    //Reference to Admob Manager
+    [SerializeField] AdmobManager admobManager;
+
+
+
+    private void Start()
+    {
+
+        RequestConsentInfo();
+        admobManager.GoogleMobileAdsInit();
+        PrivacyButton();
+
+
+    }
+
+    ///Summary
+    ///Request Consent Information
+    ///Warning: Ads can be preloaded by the Google Mobile Ads SDK or mediation partner SDKs
+    ///upon calling MobileAds.Initialize(). If you need to obtain consent from users in the European Economic Area (EEA), set any request-specific flags, such as tagForChildDirectedTreatment or tag_for_under_age_of_consent, or otherwise take action before loading ads.
+    ///Ensure you do this before initializing the Google Mobile Ads SDK.
+    ///Summary
+    
+    void RequestConsentInfo()
+    {
+        // Set tag for under age of consent.
+        // Here false means users are not under age of consent.
+        ConsentRequestParameters request = new ConsentRequestParameters
+        {
+            TagForUnderAgeOfConsent = false,
+        };
+
+        // Check the current consent information status.
+        ConsentInformation.Update(request, OnConsentInfoUpdated);
+    }
+
+    void OnConsentInfoUpdated(FormError consentError)
+    {
+        if (consentError != null)
+        {
+            // Handle the error.
+            UnityEngine.Debug.LogError(consentError);
+            return;
+        }
+
+        // If the error is null, the consent information state was updated.
+        // You are now ready to check if a form is available.
+        ConsentForm.LoadAndShowConsentFormIfRequired((FormError formError) =>
+        {
+            if (formError != null)
+            {
+                // Consent gathering failed.
+                UnityEngine.Debug.LogError(consentError);
+                return;
+            }
+
+            // Consent has been gathered.
+            if (ConsentInformation.CanRequestAds())
+            {
+                MobileAds.Initialize((InitializationStatus initstatus) =>
+                {
+                    // TODO: Request an ad.
+                    admobManager.LoadInterstitialAd();
+                    admobManager.LoadRewardedInterstitialAd();
+                    
+                });
+            }
+        });
+    }
+
+    void PrivacyButton()
+    {
+        // Enable the privacy settings button.
+        if (_privacyButton != null)
+        {
+            _privacyButton.onClick.AddListener(UpdatePrivacyButton);
+            // Disable the privacy settings button by default.
+            _privacyButton.interactable = false;
+        }
+    }
+
+    private void UpdatePrivacyButton()
+    {
+        // Logic for updating privacy options
+        ShowPrivacyOptionsForm(); // You might want to call your method to show the privacy options form here
+        Debug.Log("Privacy button clicked!");
+    }
+
+    /// <summary>
+    /// Shows the privacy options form to the user.
+    /// </summary>
+    public void ShowPrivacyOptionsForm()
+    {
+        Debug.Log("Showing privacy options form.");
+
+        ConsentForm.LoadAndShowConsentFormIfRequired((FormError showError) =>
+        {
+            if (showError != null)
+            {
+                Debug.LogError("Error showing privacy options form with error: " + showError.Message);
+            }
+            else
+            {
+                // Enable the privacy settings button.
+                if (_privacyButton != null)
+                {
+                    _privacyButton.interactable =
+                        ConsentInformation.PrivacyOptionsRequirementStatus ==
+                        PrivacyOptionsRequirementStatus.Required;
+                }
+            }
+            
+        });
+    }
+
+    
+
+}
