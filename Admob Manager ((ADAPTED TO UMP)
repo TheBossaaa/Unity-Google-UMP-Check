@@ -1,0 +1,373 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using GoogleMobileAds;
+using GoogleMobileAds.Api;
+using System;
+using UnityEngine.UI;
+using TMPro;
+
+public class AdmobManager : MonoBehaviour
+{
+
+    // These ad units are configured to always serve test ads.
+    // Test Ad ID: ca-app-pub-3940256099942544/1033173712
+#if UNITY_ANDROID
+    private string intersstitialAdsID = "xxx"; //FIX BEFORE PUBLISHING
+#elif UNITY_IPHONE
+  private string _adUnitId = "xxx";
+#else
+  private string _adUnitId = "unused";
+#endif
+
+    // These ad units are configured to always serve test ads.
+#if UNITY_ANDROID
+    private string rewardedInterstitialAds = "xxx"; //FIX BEFORE PUBLISHING
+#elif UNITY_IPHONE
+  private string _adUnitId = "xxx";
+#else
+  private string _adUnitId = "unused";
+#endif
+
+
+
+    private InterstitialAd _interstitialAd;
+    private RewardedInterstitialAd _rewardedInterstitialAd;
+
+    [SerializeField] Button rewardedAdsButton;
+    [SerializeField] TextMeshProUGUI rewardedAdsButtonText;
+    
+
+    private void Start()
+    {
+        //Due to consent, best to initialize start functions from UMP Manager
+        
+    }
+
+
+    #region Rewards
+
+    void GrantDarts(int darts)
+    {
+        ScoreManager scoreManager = FindObjectOfType<ScoreManager>();
+        scoreManager.remainingDarts += darts;
+        Debug.Log("Grant darts initiated");
+        scoreManager.UpdateDartText();
+        scoreManager.ContinueAfterRewardedAds();
+
+    }
+
+    #endregion
+
+
+    //Initialize Mobile Ads
+    public void GoogleMobileAdsInit()
+    {
+        // Initialize the Google Mobile Ads SDK.
+        MobileAds.Initialize(initStatus => { });
+    }
+
+    #region InterstitialAds
+    /// <summary>
+    /// Loads the interstitial ad.
+    /// </summary>
+    public void LoadInterstitialAd()
+    {
+        // Clean up the old ad before loading a new one.
+        if (_interstitialAd != null)
+        {
+            _interstitialAd.Destroy();
+            _interstitialAd = null;
+        }
+
+        Debug.Log("Loading the interstitial ad.");
+
+        // create our request used to load the ad.
+        var adRequest = new AdRequest();
+
+        // send the request to load the ad.
+        InterstitialAd.Load(intersstitialAdsID, adRequest,
+            (InterstitialAd ad, LoadAdError error) =>
+            {
+                // if error is not null, the load request failed.
+                if (error != null || ad == null)
+                {
+                    Debug.LogError("interstitial ad failed to load an ad " +
+                                   "with error : " + error);
+                    return;
+                }
+
+                Debug.Log("Interstitial ad loaded with response : "
+                          + ad.GetResponseInfo());
+
+                _interstitialAd = ad;
+            });
+    }
+
+    /// <summary>
+    /// Shows the interstitial ad.
+    /// </summary>
+    public void ShowInterstitialAd()
+    {
+        if (_interstitialAd != null && _interstitialAd.CanShowAd())
+        {
+            Debug.Log("Showing interstitial ad.");
+            _interstitialAd.Show();
+
+            RegisterEventHandlersForInterstitialAds(_interstitialAd);
+        }
+        else
+        {
+            Debug.LogError("Interstitial ad is not ready yet.");
+        }
+    }
+
+    public void RegisterEventHandlersForInterstitialAds(InterstitialAd interstitialAd)
+    {
+        // Raised when the ad is estimated to have earned money.
+        interstitialAd.OnAdPaid += (AdValue adValue) =>
+        {
+            Debug.Log(String.Format("Interstitial ad paid {0} {1}.",
+                adValue.Value,
+                adValue.CurrencyCode));
+        };
+        // Raised when an impression is recorded for an ad.
+        interstitialAd.OnAdImpressionRecorded += () =>
+        {
+            Debug.Log("Interstitial ad recorded an impression.");
+        };
+        // Raised when a click is recorded for an ad.
+        interstitialAd.OnAdClicked += () =>
+        {
+            Debug.Log("Interstitial ad was clicked.");
+        };
+        // Raised when an ad opened full screen content.
+        interstitialAd.OnAdFullScreenContentOpened += () =>
+        {
+            Debug.Log("Interstitial ad full screen content opened.");
+        };
+        // Raised when the ad closed full screen content.
+        interstitialAd.OnAdFullScreenContentClosed += () =>
+        {
+            Debug.Log("Interstitial ad full screen content closed.");
+            _interstitialAd.Destroy();
+            RegisterReloadHandlerForInterstitialAd(_interstitialAd);
+
+        };
+        // Raised when the ad failed to open full screen content.
+        interstitialAd.OnAdFullScreenContentFailed += (AdError error) =>
+        {
+            Debug.LogError("Interstitial ad failed to open full screen content " +
+                           "with error : " + error);
+            RegisterReloadHandlerForInterstitialAd(_interstitialAd);
+        };
+    }
+
+    private void RegisterReloadHandlerForInterstitialAd(InterstitialAd interstitialAd)
+    {
+        // Raised when the ad closed full screen content.
+        interstitialAd.OnAdFullScreenContentClosed += () =>
+    {
+            Debug.Log("Interstitial Ad full screen content closed.");
+
+            // Reload the ad so that we can show another as soon as possible.
+            LoadInterstitialAd();
+        };
+        // Raised when the ad failed to open full screen content.
+        interstitialAd.OnAdFullScreenContentFailed += (AdError error) =>
+        {
+            Debug.LogError("Interstitial ad failed to open full screen content " +
+                           "with error : " + error);
+
+            // Reload the ad so that we can show another as soon as possible.
+            LoadInterstitialAd();
+        };
+    }
+
+    #endregion
+
+    #region RewardedInterstitialAds
+
+    /// <summary>
+    /// Loads the rewarded interstitial ad.
+    /// </summary>
+    public void LoadRewardedInterstitialAd()
+    {
+        Debug.Log("Loading the rewarded interstitial ad.");
+
+        // create our request used to load the ad.
+        var adRequest = new AdRequest();
+        adRequest.Keywords.Add("unity-admob-sample");
+
+        // send the request to load the ad.
+        RewardedInterstitialAd.Load(rewardedInterstitialAds, adRequest,
+            (RewardedInterstitialAd ad, LoadAdError error) =>
+            {
+                // if error is not null, the load request failed.
+                if (error != null || ad == null)
+                {
+                    Debug.LogError("rewarded interstitial ad failed to load an ad " +
+                                   "with error : " + error);
+                    return;
+                }
+
+                Debug.Log("Rewarded interstitial ad loaded with response : "
+                          + ad.GetResponseInfo());
+
+                _rewardedInterstitialAd = ad;
+                RegisterEventHandlersForRewardedInterstitialAds(_rewardedInterstitialAd);
+            });
+    }
+
+    public void ShowRewardedInterstitialAd()
+    {
+        const string rewardMsg =
+            "Rewarded interstitial ad rewarded the user. Type: {0}, amount: {1}.";
+
+        // Check if the rewardedInterstitialAd is null or cannot be shown
+        if (_rewardedInterstitialAd == null || !_rewardedInterstitialAd.CanShowAd())
+        {
+            Debug.Log("Ad is null or cannot be shown, loading ad...");
+
+            // Load the rewarded interstitial ad if it's not loaded.
+            LoadRewardedInterstitialAd();
+
+            //Display a "Try Again" message on the screen.
+            ShowTryAgainMessage();
+
+            // Exit the method as the ad is not ready to be shown yet.
+            return;
+        }
+
+        if (_rewardedInterstitialAd != null && _rewardedInterstitialAd.CanShowAd())
+        {
+            _rewardedInterstitialAd.Show((Reward reward) =>
+            {
+                // TODO: Reward the user.
+                Debug.Log("Rewarding the user x5 Darts");
+
+                int dartsAwarded = 5;
+                GrantDarts(dartsAwarded);
+                Debug.Log(string.Format(rewardMsg, dartsAwarded));
+  
+
+            });
+        }
+    }
+
+    public void RegisterEventHandlersForRewardedInterstitialAds(RewardedInterstitialAd ad)
+    {
+        // Raised when the ad is estimated to have earned money.
+        ad.OnAdPaid += (AdValue adValue) =>
+        {
+            Debug.Log(String.Format("Rewarded interstitial ad paid {0} {1}.",
+                adValue.Value,
+                adValue.CurrencyCode));
+        };
+        // Raised when an impression is recorded for an ad.
+        ad.OnAdImpressionRecorded += () =>
+        {
+            Debug.Log("Rewarded interstitial ad recorded an impression.");
+        };
+        // Raised when a click is recorded for an ad.
+        ad.OnAdClicked += () =>
+        {
+            Debug.Log("Rewarded interstitial ad was clicked.");
+        };
+        // Raised when an ad opened full screen content.
+        ad.OnAdFullScreenContentOpened += () =>
+        {
+            Debug.Log("Rewarded interstitial ad full screen content opened.");
+        };
+        // Raised when the ad closed full screen content.
+        ad.OnAdFullScreenContentClosed += () =>
+        {
+            Debug.Log("Rewarded interstitial ad full screen content closed.");
+            // Register reload handler to prepare for the next ad
+            CleanupRewardedInterstitialAd();
+            RegisterReloadHandlerForRewardedInterstitialAd(_rewardedInterstitialAd);
+            
+
+        };
+        // Raised when the ad failed to open full screen content.
+        ad.OnAdFullScreenContentFailed += (AdError error) =>
+        {
+            Debug.LogError("Rewarded interstitial ad failed to open " +
+                           "full screen content with error : " + error);
+            // Register reload handler to prepare for the next ad
+            RegisterReloadHandlerForRewardedInterstitialAd(_rewardedInterstitialAd);
+
+        };
+    }
+
+    public void RegisterReloadHandlerForRewardedInterstitialAd(RewardedInterstitialAd ad)
+    {
+        Debug.Log("Reload Handler for Rewarded Ads Initiated ");
+
+        // Raised when the ad closed full screen content.
+        ad.OnAdFullScreenContentClosed += () =>
+    {
+            Debug.Log("Rewarded interstitial ad full screen content closed.");
+        
+            // Reload the ad so that we can show another as soon as possible.
+            LoadRewardedInterstitialAd();
+        };
+        // Raised when the ad failed to open full screen content.
+        ad.OnAdFullScreenContentFailed += (AdError error) =>
+        {
+            Debug.LogError("Rewarded interstitial ad failed to open " +
+                           "full screen content with error : " + error);
+
+            // Reload the ad so that we can show another as soon as possible.
+            LoadRewardedInterstitialAd();
+        };
+    }
+
+    private void CleanupRewardedInterstitialAd()
+    {
+        if (_rewardedInterstitialAd != null)
+        {
+            _rewardedInterstitialAd.Destroy();
+            _rewardedInterstitialAd = null; // Set to null to indicate it's no longer in use
+        }
+    }
+
+    private IEnumerator DisplayTryAgainMessage()
+    {
+        //Change the text to "Try Again!";
+        rewardedAdsButtonText.text = "Loading...";
+
+        //Disable button interaction for 3 seconds
+        rewardedAdsButton.interactable = false;
+
+        float countdownDuration = 3f; //seconds
+        float countdownTimer = countdownDuration;
+
+        while (countdownTimer > 0f)
+        {
+            //Update the countdown text
+            rewardedAdsButtonText.text = Mathf.Ceil(countdownTimer).ToString();
+
+            //Wait for the next frame
+            yield return null;
+
+            //Update the countdown timer
+            countdownTimer -= Time.deltaTime;
+        }
+
+        //Reset the button Text and enable button interaction.
+        rewardedAdsButtonText.text = "Darts x5";
+        rewardedAdsButton.interactable = true;
+
+
+
+    }
+
+    //Call this method when you want to display the "Try Again" message
+    void ShowTryAgainMessage()
+    {
+        StartCoroutine(DisplayTryAgainMessage());
+    }
+
+    #endregion
+}
